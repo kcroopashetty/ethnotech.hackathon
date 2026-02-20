@@ -56,8 +56,109 @@ const AIInsight = ({ sentiment, isAnalyzing, fusionLabel, facialMood, onTriggerI
 
     const config = getMoodConfig(sentiment.dominant);
     const cv = sentiment.crossVerification;
+    const mixedInsight = sentiment.mixedMoodInsight;
 
-    // Coping Strategy Mapping
+    // If mixed emotion detected, show special panel
+    if (mixedInsight && mixedInsight.type === 'mixed') {
+        return (
+            <div className="card fade-in" style={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: 0,
+                overflow: 'hidden'
+            }}>
+                {/* Purple header for mixed emotions */}
+                <div style={{ height: '6px', background: 'hsl(var(--primary) / 0.5)', width: '100%' }}></div>
+
+                <div style={{ padding: '30px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <header style={{
+                        marginBottom: '20px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <h3 style={{ fontWeight: '500', margin: 0 }}>Mixed Signals</h3>
+                            <span style={{
+                                fontSize: '0.75rem',
+                                fontWeight: '700',
+                                padding: '2px 10px',
+                                borderRadius: '4px',
+                                width: 'fit-content',
+                                color: 'hsl(var(--primary))',
+                                background: 'rgba(205, 180, 219, 0.15)'
+                            }}>
+                                🎭 Emotion Check-in
+                            </span>
+                        </div>
+                        <span style={{
+                            fontSize: '2rem',
+                            opacity: 0.7
+                        }}>
+                            🎭
+                        </span>
+                    </header>
+
+                    {/* Mixed emotion card */}
+                    <div style={{
+                        background: 'linear-gradient(135deg, rgba(205, 180, 219, 0.15), rgba(200, 180, 220, 0.08))',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        marginBottom: '20px',
+                        border: '1px solid hsl(var(--primary) / 0.15)',
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center'
+                    }}>
+                        <p style={{
+                            fontSize: '1rem',
+                            color: 'hsl(var(--text-dark))',
+                            lineHeight: '1.6',
+                            margin: 0,
+                            fontStyle: 'italic',
+                            textAlign: 'center'
+                        }}>
+                            {mixedInsight.message}
+                        </p>
+                    </div>
+
+                    {/* Gentle reflection prompt */}
+                    <div style={{
+                        background: 'rgba(255, 255, 255, 0.5)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        border: '1px dashed hsl(var(--primary) / 0.2)',
+                        textAlign: 'center'
+                    }}>
+                        <p style={{
+                            fontSize: '0.85rem',
+                            color: 'hsl(var(--text-muted))',
+                            margin: 0,
+                            lineHeight: '1.5'
+                        }}>
+                            💭 <strong>Gentle Reflection:</strong><br />
+                            Take a moment to sit with your feelings. You don't need to fix or explain anything right now.
+                        </p>
+                    </div>
+
+                    <footer style={{
+                        marginTop: '25px',
+                        paddingTop: '15px',
+                        borderTop: '1px solid var(--divider)',
+                        textAlign: 'center'
+                    }}>
+                        <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                            🧠 Multimodal emotion analysis
+                        </small>
+                    </footer>
+                </div>
+            </div>
+        );
+    }
+
+    // ===== NORMAL MOOD INSIGHT (non-mixed) =====
     const copingStrategies = {
         happy: {
             title: "🌟 Gratitude Moment",

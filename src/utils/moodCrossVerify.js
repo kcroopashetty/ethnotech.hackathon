@@ -32,6 +32,66 @@ const moodEmojis = {
     calm: '😌'
 };
 
+// Categorize moods
+const getMoodCategory = (mood) => {
+    if (!mood) return null;
+    const negative = ['sad', 'stressed', 'anxious'];
+    const positive = ['happy', 'calm'];
+    const normalized = normalizeMood(mood);
+    if (negative.includes(normalized)) return 'negative';
+    if (positive.includes(normalized)) return 'positive';
+    return 'neutral';
+};
+
+/**
+ * Get final mood insight by comparing text and facial moods.
+ * Handles mixed emotions with special messages for edge cases.
+ * @param {string|null} textMood - Dominant text mood
+ * @param {string|null} faceMood - Detected facial mood
+ * @returns {{ type: string, message?: string } | null}
+ */
+export const getFinalMoodInsight = (textMood, faceMood) => {
+    // If no facial mood detected, return normal insight
+    if (!faceMood) {
+        return null;
+    }
+
+    const normText = normalizeMood(textMood);
+    const normFace = normalizeMood(faceMood);
+
+    // If both are null or same, return normal insight
+    if (!normText || normText === normFace) {
+        return null;
+    }
+
+    // Mixed emotion detected
+    const textCat = getMoodCategory(normText);
+    const faceCat = getMoodCategory(normFace);
+
+    // Edge case: Negative text + Positive face (masking positive)
+    if (textCat === 'negative' && faceCat === 'positive') {
+        return {
+            type: 'mixed',
+            message: "You may be putting on a brave face. Your feelings still matter — what you wrote deserves attention. 💙"
+        };
+    }
+
+    // Edge case: Positive text + Negative face (tired or low)
+    if (textCat === 'positive' && faceCat === 'negative') {
+        return {
+            type: 'mixed',
+            message: "You sound okay, but your expression suggests you may be tired or low. It's okay to acknowledge both — the words and the feelings. 🌿"
+        };
+    }
+
+    // General mixed emotion
+    return {
+        type: 'mixed',
+        message: "Your words and expressions seem different. You might be masking how you feel. Take a gentle moment to check in with yourself. 🧭"
+    };
+};
+
+
 /**
  * Cross-verify text mood against facial mood.
  * @param {string|null} textMood - Dominant text mood (e.g. 'happy', 'sad', 'stress')
@@ -131,3 +191,4 @@ export const generateCombinedInsight = (status, textMood, facialMood) => {
     return mismatchInsights[key]
         || "Your writing and expression suggest different feelings. You might be masking something. Would you like to explore it?";
 };
+

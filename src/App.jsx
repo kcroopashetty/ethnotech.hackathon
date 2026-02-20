@@ -14,7 +14,7 @@ import Doodle from './components/Doodle';
 import Onboarding from './components/Onboarding';
 import ActivityModal from './components/activities/ActivityModal';
 import { analyzeSentiment } from './utils/sentiment';
-import { crossVerifyMoods, generateCombinedInsight } from './utils/moodCrossVerify';
+import { crossVerifyMoods, generateCombinedInsight, getFinalMoodInsight } from './utils/moodCrossVerify';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
 // --- Protected Routes ---
@@ -172,6 +172,15 @@ function App() {
                 ...crossResult,
                 combinedInsight
             };
+
+            // --- Mixed Emotion Detection ---
+            const mixedMoodInsight = getFinalMoodInsight(
+                text.trim() ? result.dominant : null,
+                facialMood ? facialMood.label : null
+            );
+            if (mixedMoodInsight) {
+                result.mixedMoodInsight = mixedMoodInsight;
+            }
 
             // Set fusion label from cross-verification
             if (crossResult.status === 'mismatch') {
