@@ -1,7 +1,9 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const MoodDashboard = ({ history }) => {
+const MoodDashboard = ({ history = [] }) => {
+    // If no data, render nothing as per production hardening rules
+    if (!history || history.length === 0) return null;
     // Mood to value mapping
     const moodToValue = {
         'sad': 1,

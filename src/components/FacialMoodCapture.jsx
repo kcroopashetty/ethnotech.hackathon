@@ -5,6 +5,7 @@ const FacialMoodCapture = ({ onMoodDetected, facialMood }) => {
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [isModelLoading, setIsModelLoading] = useState(false);
     const [localMood, setLocalMood] = useState(facialMood);
+    const [cameraError, setCameraError] = useState(null);
     const videoRef = useRef(null);
 
     const moodMap = {
@@ -20,6 +21,7 @@ const FacialMoodCapture = ({ onMoodDetected, facialMood }) => {
 
 
     const startCamera = async () => {
+        setCameraError(null);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true });
             if (videoRef.current) {
@@ -28,7 +30,7 @@ const FacialMoodCapture = ({ onMoodDetected, facialMood }) => {
             }
         } catch (error) {
             console.error("Error accessing camera:", error);
-            alert("Camera access is optional. You can continue journaling.");
+            setCameraError("Camera unavailable on this device");
         }
     };
 
@@ -113,14 +115,19 @@ const FacialMoodCapture = ({ onMoodDetected, facialMood }) => {
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {!isCameraActive ? (
-                    <button
-                        onClick={startCamera}
-                        disabled={isModelLoading}
-                        className="btn-secondary"
-                        style={{ padding: '8px 16px', borderRadius: '12px', fontSize: '0.85rem' }}
-                    >
-                        {isModelLoading ? '⏳ Loading Models...' : '📷 Start Camera'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button
+                            onClick={startCamera}
+                            disabled={isModelLoading || cameraError}
+                            className="btn-secondary"
+                            style={{ padding: '8px 16px', borderRadius: '12px', fontSize: '0.85rem' }}
+                        >
+                            {isModelLoading ? '⏳ Loading Models...' : '📷 Start Camera'}
+                        </button>
+                        {cameraError && (
+                            <small style={{ color: '#ff4d4d', fontSize: '0.75rem' }}>{cameraError}</small>
+                        )}
+                    </div>
                 ) : (
                     <>
                         <button

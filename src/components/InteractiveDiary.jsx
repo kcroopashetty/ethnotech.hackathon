@@ -204,7 +204,7 @@ const InteractiveDiary = forwardRef(({ onAnalyze, userContext, onTriggerExercise
 
     return (
         <div className="card" style={{
-            height: '110vh',
+            height: '75vh',
             maxHeight: '110vh',
             display: 'flex',
             flexDirection: 'column',

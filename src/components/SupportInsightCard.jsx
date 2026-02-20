@@ -18,8 +18,10 @@ const categoryLabels = {
 const SupportInsightCard = ({ onStartExercise, onTalkToAura }) => {
     const [showMusic, setShowMusic] = useState(false);
     const [currentVideoId, setCurrentVideoId] = useState(null);
+    const [musicError, setMusicError] = useState(false);
 
     const handlePlay = (category) => {
+        setMusicError(false);
         const ids = focusMusic[category];
         const randomId = ids[Math.floor(Math.random() * ids.length)];
         setCurrentVideoId(randomId);
@@ -183,11 +185,11 @@ const SupportInsightCard = ({ onStartExercise, onTalkToAura }) => {
                     </div>
 
                     {/* Embedded player — shown when a track is selected */}
-                    {currentVideoId && (
-                        <div style={{ marginTop: '15px', borderRadius: '12px', overflow: 'hidden' }}>
+                    {currentVideoId && !musicError ? (
+                        <div style={{ marginTop: '15px', borderRadius: '12px', overflow: 'hidden', background: '#000' }}>
                             <iframe
                                 key={currentVideoId}
-                                src={`https://www.youtube.com/embed/${currentVideoId}?rel=0`}
+                                src={`https://www.youtube.com/embed/${currentVideoId}?rel=0&autoplay=1`}
                                 title="Focus Music"
                                 width="100%"
                                 height="200"
@@ -195,8 +197,26 @@ const SupportInsightCard = ({ onStartExercise, onTalkToAura }) => {
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                 allowFullScreen
                                 style={{ display: 'block' }}
+                                onError={() => setMusicError(true)}
                             />
-                        </div >
+                            <div style={{ padding: '8px', textAlign: 'center', background: 'hsl(var(--bg-warm))' }}>
+                                <small style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))' }}>
+                                    Music not loading? <button onClick={() => setMusicError(true)} style={{ border: 'none', background: 'none', color: 'hsl(var(--primary))', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>Show fallback</button>
+                                </small>
+                            </div>
+                        </div>
+                    ) : (currentVideoId && musicError) && (
+                        <div style={{ marginTop: '15px', padding: '20px', textAlign: 'center', background: 'rgba(255, 154, 162, 0.1)', borderRadius: '12px' }}>
+                            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-dark))', margin: '0 0 10px 0' }}>
+                                ⚠️ Music unavailable. Try another track or check your connection.
+                            </p>
+                            <button
+                                onClick={() => setMusicError(false)}
+                                style={{ fontSize: '0.8rem', padding: '4px 12px', borderRadius: '12px', border: '1px solid var(--divider)', background: 'white' }}
+                            >
+                                Retry
+                            </button>
+                        </div>
                     )}
                 </div >
             )}
