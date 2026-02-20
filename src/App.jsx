@@ -13,7 +13,13 @@ import FacialMoodCapture from './components/FacialMoodCapture';
 import Doodle from './components/Doodle';
 import Onboarding from './components/Onboarding';
 import ActivityModal from './components/activities/ActivityModal';
+import SupportInsightCard from './components/SupportInsightCard';
+import RecoveryTimeCard from './components/RecoveryTimeCard';
+import WeeklySummaryCard from './components/WeeklySummaryCard';
+import NightInterventionCard from './components/NightInterventionCard';
 import { analyzeSentiment } from './utils/sentiment';
+import { savePositiveMemory, getRandomPositiveMemories, computeRecoveryDays, checkNightIntervention } from './utils/safeFeatures';
+import { saveMessage } from './utils/auraResponses';
 import { crossVerifyMoods, generateCombinedInsight, getFinalMoodInsight } from './utils/moodCrossVerify';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
@@ -201,6 +207,13 @@ function App() {
             setCurrentAnalysis(result);
             setIsAnalyzing(false);
 
+            // --- Safe Feature Hooks (additive, fail-safe) ---
+            try {
+                if (result.dominant === 'happy' && text.trim()) {
+                    savePositiveMemory(text);
+                }
+            } catch { /* fail silently */ }
+
             if (result.dominant !== 'neutral') {
                 const newMoodEntry = {
                     id: Date.now(),
@@ -227,11 +240,66 @@ function App() {
                     }
                 }
 
+                // Step 1: High Stress Pattern Detection (last 14 days)
+                let highStress = false;
+                const fourteenDaysAgoDate = new Date();
+                fourteenDaysAgoDate.setDate(fourteenDaysAgoDate.getDate() - 14);
+                const fourteenDaysAgo = fourteenDaysAgoDate.getTime();
+
+                const recentHistory = updatedHistory.filter(entry =>
+                    new Date(entry.date).getTime() >= fourteenDaysAgo
+                );
+
+                let sadStreak = 0;
+                let maxSadStreak = 0;
+                let negativeMoodsCount = 0;
+                let stressedCount = 0;
+
+                // Sort by oldest first to calculate streak correctly
+                const sortedRecentHistory = [...recentHistory].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                sortedRecentHistory.forEach(entry => {
+                    const mood = entry.mood === 'stress' ? 'stressed' : entry.mood;
+                    if (['sad', 'anxious', 'stressed', 'angry'].includes(mood)) {
+                        negativeMoodsCount++;
+                    }
+                    if (mood === 'sad') {
+                        sadStreak++;
+                        if (sadStreak > maxSadStreak) maxSadStreak = sadStreak;
+                    } else {
+                        sadStreak = 0;
+                    }
+                    if (['stressed', 'anxious'].includes(mood)) {
+                        stressedCount++;
+                    }
+                });
+
+                if (negativeMoodsCount >= 8 || maxSadStreak >= 4 || stressedCount >= 5) {
+                    highStress = true;
+                }
+
+                let newShowSupportCard = currentUser.showSupportCard || false;
+                let newHighStressShownDate = currentUser.highStressShownDate || null;
+
+                if (highStress && newHighStressShownDate !== today) {
+                    newShowSupportCard = true;
+                    newHighStressShownDate = today;
+                }
+
+                if (result.dominant === 'happy') {
+                    newShowSupportCard = false;
+                }
+
                 updateUserState({
                     moodHistory: updatedHistory,
                     streak: newStreak,
-                    lastEntryDate: today
+                    lastEntryDate: today,
+                    showSupportCard: newShowSupportCard,
+                    highStressShownDate: newHighStressShownDate
                 });
+
+                // --- Safe Feature: compute recovery days (additive, fail-safe) ---
+                try { computeRecoveryDays(updatedHistory); } catch { /* fail silently */ }
             }
         }, 2000);
     };
@@ -328,6 +396,37 @@ const DashboardContent = ({
     const navigate = useNavigate();
     const [showControlPanel, setShowControlPanel] = useState(false);
     const [activeActivity, setActiveActivity] = useState(null);
+    const [showNightCard, setShowNightCard] = useState(false);
+    const diaryRef = React.useRef(null);
+
+    // --- Safe Feature: Night intervention check after analysis ---
+    React.useEffect(() => {
+        try {
+            if (currentAnalysis && currentAnalysis.dominant) {
+                const shouldShow = checkNightIntervention(currentAnalysis.dominant);
+                if (shouldShow) setShowNightCard(true);
+            }
+        } catch { /* fail silently */ }
+    }, [currentAnalysis]);
+
+    // --- Safe Feature: Positive Memory Reminder ---
+    const handlePositiveRemind = () => {
+        try {
+            const memories = getRandomPositiveMemories(3);
+            if (memories.length === 0) {
+                saveMessage('aura', "We'll build your positive memory together. Keep journaling! ✨");
+            } else {
+                memories.forEach(mem => {
+                    saveMessage('aura', `You once said: "${mem.text.slice(0, 200)}" ✨`);
+                });
+            }
+            // Reload diary messages and scroll to bottom
+            setTimeout(() => {
+                diaryRef.current?.reloadMessages();
+                diaryRef.current?.focusInput();
+            }, 100);
+        } catch { /* fail silently */ }
+    };
 
     const handleTriggerExercise = (exerciseId) => {
         // Map exercise IDs to activity IDs
@@ -338,13 +437,50 @@ const DashboardContent = ({
             'breakdown': 'breakdown',
             'bubble': 'bubble',
             'focus': 'focus',
-            'color': 'color'
+            'color': 'color',
+            'taskBreakdown': 'breakdown',
+            'selfCompassion': 'compassion',
+            'reflectionPrompt': 'color',
+            'gratitudePrompt': 'bubble'
         };
 
-        const activityId = activityMap[exerciseId];
+        const activityId = activityMap[exerciseId] || exerciseId;
         if (activityId) {
             setActiveActivity(activityId);
         }
+    };
+
+    const getMappedExercise = () => {
+        const history = currentUser.moodHistory || [];
+        const last3 = history.slice(0, 3);
+        if (last3.length === 0) return 'breathing';
+
+        // find dominant mood
+        const counts = {};
+        last3.forEach(entry => {
+            const m = entry.mood === 'stress' ? 'stressed' : entry.mood;
+            counts[m] = (counts[m] || 0) + 1;
+        });
+
+        let dominantMood = last3[0].mood === 'stress' ? 'stressed' : last3[0].mood; // fallback to most recent
+        let maxCount = 0;
+        for (const m in counts) {
+            if (counts[m] > maxCount) {
+                maxCount = counts[m];
+                dominantMood = m;
+            }
+        }
+
+        const exerciseMap = {
+            'anxious': 'breathing',
+            'stressed': 'taskBreakdown',
+            'sad': 'selfCompassion',
+            'angry': 'grounding',
+            'neutral': 'reflectionPrompt',
+            'happy': 'gratitudePrompt'
+        };
+
+        return exerciseMap[dominantMood] || 'breathing';
     };
 
     return (
@@ -475,8 +611,10 @@ const DashboardContent = ({
                         </div>
                     ) : diaryMode === 'interactive' ? (
                         <InteractiveDiary
+                            ref={diaryRef}
                             onAnalyze={handleAnalyzeEntry}
                             userContext={currentUser.userContext}
+                            onTriggerExercise={handleTriggerExercise}
                         />
                     ) : (
                         <JournalInterface onAnalyze={handleAnalyzeEntry} />
@@ -503,6 +641,7 @@ const DashboardContent = ({
                             onSaveGratitude={onSaveGratitude}
                             onSaveSelfCompassionNote={onSaveSelfCompassionNote}
                             onExerciseComplete={onExerciseComplete}
+                            onPositiveRemind={handlePositiveRemind}
                         />
                     </div>
 
@@ -510,6 +649,30 @@ const DashboardContent = ({
                     <div style={{ height: '300px' }}>
                         <MoodDashboard history={currentUser.moodHistory || []} />
                     </div>
+
+                    {/* --- Safe Feature Cards (rendered BELOW weekly chart) --- */}
+                    <RecoveryTimeCard />
+                    <WeeklySummaryCard moodHistory={currentUser.moodHistory || []} />
+                    {showNightCard && (
+                        <NightInterventionCard
+                            onStartBreathing={() => {
+                                setShowNightCard(false);
+                                handleTriggerExercise('breathing');
+                            }}
+                            onDismiss={() => setShowNightCard(false)}
+                        />
+                    )}
+
+                    {currentUser.showSupportCard && (
+                        <SupportInsightCard
+                            onStartExercise={() => handleTriggerExercise(getMappedExercise())}
+                            onTalkToAura={() => {
+                                setDiaryMode('interactive');
+                                // Wait for React to render InteractiveDiary before focusing
+                                setTimeout(() => diaryRef.current?.focusInput(), 100);
+                            }}
+                        />
+                    )}
                 </aside>
             </main>
 

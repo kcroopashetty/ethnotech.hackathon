@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { saveExerciseToDiary } from '../../utils/auraResponses';
 
 const BreathingAnimation = ({ onClose }) => {
     const [cycle, setCycle] = useState(0);
     const [phase, setPhase] = useState('inhale'); // 'inhale', 'hold', 'exhale'
     const [completed, setCompleted] = useState(false);
     const [scale, setScale] = useState(0.5);
+    const [exerciseInputText, setExerciseInputText] = useState('');
 
     useEffect(() => {
         if (completed) return;
@@ -119,28 +121,60 @@ const BreathingAnimation = ({ onClose }) => {
                         fontWeight: '600',
                         color: 'hsl(var(--primary))',
                         textAlign: 'center',
-                        marginBottom: '40px',
+                        marginBottom: '20px',
                         fontFamily: 'var(--font-hand)'
                     }}>
                         You did something kind for yourself 🌿
                     </div>
-                    <button
-                        onClick={onClose}
+
+                    <textarea
+                        value={exerciseInputText}
+                        onChange={(e) => setExerciseInputText(e.target.value)}
+                        placeholder="How do you feel after breathing?"
                         style={{
-                            background: 'hsl(var(--primary))',
-                            color: 'white',
+                            width: '100%',
+                            maxWidth: '300px',
+                            padding: '15px',
+                            borderRadius: '12px',
+                            border: '2px solid var(--divider)',
+                            fontSize: '1rem',
+                            fontFamily: 'inherit',
+                            color: 'hsl(var(--text-dark))',
+                            resize: 'none',
+                            minHeight: '80px',
+                            marginBottom: '20px',
+                            transition: 'border 0.2s',
+                            outline: 'none'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = 'hsl(var(--primary))'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--divider)'}
+                    />
+
+                    <button
+                        onClick={() => {
+                            saveExerciseToDiary('Breathing', exerciseInputText);
+                            onClose();
+                        }}
+                        disabled={!exerciseInputText.trim()}
+                        style={{
+                            background: exerciseInputText.trim() ? 'hsl(var(--primary))' : 'var(--divider)',
+                            color: exerciseInputText.trim() ? 'white' : 'hsl(var(--text-muted))',
                             padding: '12px 32px',
                             borderRadius: '50px',
                             border: 'none',
                             fontSize: '1rem',
                             fontWeight: '600',
-                            cursor: 'pointer',
+                            cursor: exerciseInputText.trim() ? 'pointer' : 'not-allowed',
                             transition: 'all 0.2s'
                         }}
-                        onMouseOver={e => e.target.style.transform = 'scale(1.05)'}
-                        onMouseOut={e => e.target.style.transform = 'scale(1)'}
+                        onMouseOver={e => {
+                            if (exerciseInputText.trim()) e.target.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseOut={e => {
+                            if (exerciseInputText.trim()) e.target.style.transform = 'scale(1)';
+                        }}
                     >
-                        Close
+                        Mark as Done
                     </button>
                 </>
             )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
 import Doodle from './Doodle';
 import { generateAuraResponse, saveMessage, getConversations, detectRisk, careResponses } from '../utils/auraResponses';
@@ -6,32 +6,41 @@ import SafetyCheckInCard from './SafetyCheckInCard';
 import CareBreathingAnimation from './CareBreathingAnimation';
 import HelplineButton from './HelplineButton';
 import FindHelpNearMe from './FindHelpNearMe';
-import TrustedContactSettings from './TrustedContact';
-import TrustedContactSuggestion from './TrustedContactSuggestion';
 
-const InteractiveDiary = ({ onAnalyze, userContext }) => {
+
+const InteractiveDiary = forwardRef(({ onAnalyze, userContext, onTriggerExercise }, ref) => {
     const [entry, setEntry] = useState('');
     const [todayMessages, setTodayMessages] = useState([]);
     const [pastConversations, setPastConversations] = useState([]);
     const [isThinking, setIsThinking] = useState(false);
-    const [expandedDate, setExpandedDate] = useState(null);
 
     // CARE MODE state
     const [isCareMode, setIsCareMode] = useState(false);
     const [careStep, setCareStep] = useState(null);
     const [showBreathing, setShowBreathing] = useState(false);
-    const [trustedContact, setTrustedContact] = useState(null);
-    const [showSettings, setShowSettings] = useState(false);
+
 
     const { isListening, transcript, voiceEmotion, startListening, stopListening, hasRecognitionSupport } = useSpeechRecognition();
     const textareaRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const chatScrollRef = useRef(null);
 
-    // Load conversations and trusted contact on mount
+    // Expose focusInput() and reloadMessages() to parent via ref
+    useImperativeHandle(ref, () => ({
+        focusInput() {
+            if (chatScrollRef.current) {
+                chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            }
+            textareaRef.current?.focus();
+        },
+        reloadMessages() {
+            loadData();
+        }
+    }));
+
+    // Load conversations on mount
     useEffect(() => {
         loadData();
-        const stored = localStorage.getItem('aura_trusted_contact');
-        if (stored) setTrustedContact(JSON.parse(stored));
     }, []);
 
     const loadData = () => {
@@ -106,7 +115,33 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
             return;
         }
 
-        // 3. Normal Aura Response
+        // 3. Check for specific triggers (Exercises / Games)
+        const exerciseKeywords = ["exercise", "coping", "help me relax", "stress activity", "grounding", "breathe", "breathing"];
+        const gameKeywords = ["game", "play", "distract me", "something fun"];
+
+        const lowerText = userText.toLowerCase();
+
+        if (exerciseKeywords.some(kw => lowerText.includes(kw))) {
+            setTimeout(() => {
+                saveMessage('aura', "Here are some exercises that might help you feel more grounded and relaxed. [SHOW_EXERCISES]");
+                setIsThinking(false);
+                loadData();
+                onAnalyze(userText, voiceEmotion);
+            }, 1000);
+            return;
+        }
+
+        if (gameKeywords.some(kw => lowerText.includes(kw))) {
+            setTimeout(() => {
+                saveMessage('aura', "Playing a little game can be a great way to take your mind off things. [SHOW_GAMES]");
+                setIsThinking(false);
+                loadData();
+                onAnalyze(userText, voiceEmotion);
+            }, 1000);
+            return;
+        }
+
+        // 4. Normal Aura Response
         setTimeout(() => {
             const recentHistory = todayMessages.slice(-3);
             const response = generateAuraResponse(userText, mood, userContext, recentHistory);
@@ -121,49 +156,21 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
     const handleSafe = () => {
         saveMessage('aura', "I'm glad you're safe. Let's take a calming moment together. 🌿");
         loadData();
-        if (trustedContact) {
-            setCareStep('trusted_contact');
-        } else {
-            setCareStep('safe_breathing');
-            setShowBreathing(true);
-        }
+        setCareStep('safe_breathing');
+        setShowBreathing(true);
     };
 
     const handleUnsure = () => {
         saveMessage('aura', "That's okay. Let's ground you first, then I'll share some support options. 💙");
         loadData();
-        if (trustedContact) {
-            setCareStep('trusted_contact_unsure');
-        } else {
-            setCareStep('unsure_breathing');
-            setShowBreathing(true);
-        }
+        setCareStep('unsure_breathing');
+        setShowBreathing(true);
     };
 
     const handleNeedHelp = () => {
         saveMessage('aura', "You're brave for reaching out. Here are some people who can help right now. 💙");
         loadData();
-        if (trustedContact) {
-            setCareStep('trusted_contact_help');
-        } else {
-            setCareStep('need_help');
-        }
-    };
-
-    // Trusted contact dismissed — continue to next step
-    const handleContactDismiss = () => {
-        if (careStep === 'trusted_contact') {
-            // Was "safe" path — go to breathing, then exit
-            setCareStep('safe_breathing');
-            setShowBreathing(true);
-        } else if (careStep === 'trusted_contact_unsure') {
-            // Was "unsure" path — go to breathing, then show helplines
-            setCareStep('unsure_breathing');
-            setShowBreathing(true);
-        } else if (careStep === 'trusted_contact_help') {
-            // Was "need help" path — go to helplines directly
-            setCareStep('need_help');
-        }
+        setCareStep('need_help');
     };
 
     const handleBreathingComplete = () => {
@@ -176,9 +183,7 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
         }
     };
 
-    const handleTrustedContactSave = (contact) => {
-        setTrustedContact(contact);
-    };
+
 
     const handlePrompt = () => {
         const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
@@ -199,7 +204,8 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
 
     return (
         <div className="card" style={{
-            height: '100%',
+            height: '110vh',
+            maxHeight: '110vh',
             display: 'flex',
             flexDirection: 'column',
             position: 'relative', // Keep relative for tape/doodles
@@ -291,22 +297,6 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                         <span style={{ fontFamily: 'var(--font-body-hand)', color: 'hsl(var(--text-muted))' }}>
                             {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
                         </span>
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            title="Settings"
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                fontSize: '1rem',
-                                opacity: 0.5,
-                                transition: 'opacity 0.2s'
-                            }}
-                            onMouseOver={e => e.target.style.opacity = '1'}
-                            onMouseOut={e => e.target.style.opacity = '0.5'}
-                        >
-                            ⚙️
-                        </button>
                     </div>
                 </div>
 
@@ -336,16 +326,6 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                 )}
             </header>
 
-            {/* Settings Panel (Collapsible) */}
-            {showSettings && (
-                <div className="fade-in" style={{
-                    padding: '12px 50px 12px 50px',
-                    borderBottom: '1px dashed var(--divider)',
-                    background: 'hsl(var(--card-bg) / 0.5)'
-                }}>
-                    <TrustedContactSettings onSave={handleTrustedContactSave} />
-                </div>
-            )}
 
             {/* Main Content Area */}
             <div style={{
@@ -353,11 +333,10 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
-                minHeight: 0,
-                maxHeight: '400px'
+                minHeight: 0
             }}>
                 {/* Scrollable Messages Area */}
-                <div style={{
+                <div ref={chatScrollRef} style={{
                     flex: 1,
                     overflowY: 'auto',
                     minHeight: 0,
@@ -385,35 +364,106 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                     `}</style>
 
                     {/* 1. Today's Conversation History */}
-                    {todayMessages.map((msg, idx) => (
-                        <div key={idx} className="fade-in" style={{
-                            marginBottom: '10px',
-                            borderBottom: msg.role === 'user' ? '1px dashed rgba(0,0,0,0.1)' : 'none',
-                            paddingBottom: msg.role === 'user' ? '10px' : '0'
-                        }}>
-                            {msg.role === 'aura' && (
-                                <div style={{
-                                    fontFamily: 'var(--font-hand)',
-                                    fontSize: '0.9rem',
-                                    color: 'hsl(var(--primary))',
-                                    marginBottom: '4px',
-                                    opacity: 0.8
-                                }}>
-                                    Aura ✨
-                                </div>
-                            )}
-                            <div style={{
-                                fontFamily: 'var(--font-body-hand)',
-                                fontSize: '1.3rem',
-                                lineHeight: '2.3rem',
-                                color: msg.role === 'user' ? 'hsl(var(--text-dark))' : 'hsl(var(--primary))',
-                                fontStyle: msg.role === 'aura' ? 'italic' : 'normal',
-                                whiteSpace: 'pre-wrap'
+                    {todayMessages.map((msg, idx) => {
+                        const hasExercises = msg.text.includes('[SHOW_EXERCISES]');
+                        const hasGames = msg.text.includes('[SHOW_GAMES]');
+                        const displayText = msg.text.replace('[SHOW_EXERCISES]', '').replace('[SHOW_GAMES]', '');
+
+                        return (
+                            <div key={idx} className="fade-in" style={{
+                                marginBottom: '10px',
+                                borderBottom: msg.role === 'user' ? '1px dashed rgba(0,0,0,0.1)' : 'none',
+                                paddingBottom: msg.role === 'user' ? '10px' : '0'
                             }}>
-                                {msg.text}
+                                {msg.role === 'aura' && (
+                                    <div style={{
+                                        fontFamily: 'var(--font-hand)',
+                                        fontSize: '0.9rem',
+                                        color: 'hsl(var(--primary))',
+                                        marginBottom: '4px',
+                                        opacity: 0.8
+                                    }}>
+                                        Aura ✨
+                                    </div>
+                                )}
+                                <div style={{
+                                    fontFamily: 'var(--font-body-hand)',
+                                    fontSize: '1.3rem',
+                                    lineHeight: '2.3rem',
+                                    color: msg.role === 'user' ? 'hsl(var(--text-dark))' : 'hsl(var(--primary))',
+                                    fontStyle: msg.role === 'aura' ? 'italic' : 'normal',
+                                    whiteSpace: 'pre-wrap'
+                                }}>
+                                    {displayText}
+                                </div>
+
+                                {/* Render Exercise Buttons if triggered */}
+                                {hasExercises && onTriggerExercise && (
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+                                        {[
+                                            { id: 'breathing', label: '🌬️ Breathing', color: 'hsl(190, 80%, 40%)', bg: 'hsl(190, 80%, 95%)' },
+                                            { id: 'grounding', label: '🧘 Grounding', color: 'hsl(150, 70%, 35%)', bg: 'hsl(150, 70%, 95%)' },
+                                            { id: 'compassion', label: '💙 Compassion', color: 'hsl(210, 80%, 50%)', bg: 'hsl(210, 80%, 95%)' },
+                                            { id: 'breakdown', label: '📝 Breakdown', color: 'hsl(30, 80%, 45%)', bg: 'hsl(30, 80%, 95%)' }
+                                        ].map(btn => (
+                                            <button
+                                                key={btn.id}
+                                                onClick={() => onTriggerExercise(btn.id)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    background: btn.bg,
+                                                    color: btn.color,
+                                                    border: `1px solid ${btn.color}`,
+                                                    borderRadius: '20px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: '600',
+                                                    transition: 'all 0.2s',
+                                                    fontFamily: 'inherit'
+                                                }}
+                                                onMouseOver={e => e.target.style.transform = 'scale(1.05)'}
+                                                onMouseOut={e => e.target.style.transform = 'scale(1)'}
+                                            >
+                                                {btn.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Render Game Buttons if triggered */}
+                                {hasGames && onTriggerExercise && (
+                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+                                        {[
+                                            { id: 'bubble', label: '🫧 Bubbles', color: 'hsl(280, 70%, 50%)', bg: 'hsl(280, 70%, 95%)' },
+                                            { id: 'focus', label: '🎯 Focus Tap', color: 'hsl(0, 70%, 55%)', bg: 'hsl(0, 70%, 95%)' },
+                                            { id: 'color', label: '🎨 Color Slow', color: 'hsl(40, 90%, 40%)', bg: 'hsl(40, 90%, 95%)' }
+                                        ].map(btn => (
+                                            <button
+                                                key={btn.id}
+                                                onClick={() => onTriggerExercise(btn.id)}
+                                                style={{
+                                                    padding: '8px 16px',
+                                                    background: btn.bg,
+                                                    color: btn.color,
+                                                    border: `1px solid ${btn.color}`,
+                                                    borderRadius: '20px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.95rem',
+                                                    fontWeight: '600',
+                                                    transition: 'all 0.2s',
+                                                    fontFamily: 'inherit'
+                                                }}
+                                                onMouseOver={e => e.target.style.transform = 'scale(1.05)'}
+                                                onMouseOut={e => e.target.style.transform = 'scale(1)'}
+                                            >
+                                                {btn.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        )
+                    })}
 
                     {/* 2. Loading Indicator */}
                     {isThinking && (
@@ -442,13 +492,6 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                         />
                     )}
 
-                    {/* Trusted Contact Suggestion (shown before helplines if contact exists) */}
-                    {(careStep === 'trusted_contact' || careStep === 'trusted_contact_unsure' || careStep === 'trusted_contact_help') && trustedContact && (
-                        <TrustedContactSuggestion
-                            contact={trustedContact}
-                            onDismiss={handleContactDismiss}
-                        />
-                    )}
 
                     {/* Breathing Animation */}
                     {showBreathing && (
@@ -471,22 +514,20 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                         </>
                     )}
 
+
                     {/* Invisible anchor for scrolling */}
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* Fixed Input Area */}
+                {/* Input Area — plain flex child, pinned at bottom of panel */}
                 <div style={{
-                    marginTop: 'auto',
-                    position: 'sticky',
-                    bottom: 0,
+                    flexShrink: 0,
                     paddingTop: '15px',
                     paddingBottom: '15px',
                     paddingLeft: '50px',
                     paddingRight: '15px',
                     borderTop: '2px dashed var(--divider)',
-                    background: 'hsl(var(--card-bg))',
-                    flexShrink: 0
+                    background: 'hsl(var(--card-bg))'
                 }}>
                     <div style={{ position: 'relative', height: '80px' }}>
                         <textarea
@@ -541,55 +582,7 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
                 </div>
             </div>
 
-            {/* 4. Past Reflections (Collapsible) */}
-            {pastConversations.length > 0 && (
-                <div style={{ marginTop: '30px', borderTop: '2px solid var(--divider)', paddingTop: '20px' }}>
-                    <div
-                        onClick={() => setExpandedDate(expandedDate ? null : 'past')}
-                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                    >
-                        <h4 style={{
-                            fontSize: '1.2rem',
-                            color: 'hsl(var(--text-muted))',
-                            fontFamily: 'var(--font-hand)',
-                            marginBottom: '0'
-                        }}>
-                            Past Reflections 🕰️
-                        </h4>
-                        <span>{expandedDate ? '▲' : '▼'}</span>
-                    </div>
 
-                    {expandedDate && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-                            {pastConversations.map((entry, idx) => (
-                                <div key={idx} className="conversation-card" style={{
-                                    padding: '15px',
-                                    background: 'white',
-                                    borderRadius: '12px',
-                                    border: '1px solid var(--divider)',
-                                    opacity: 0.9
-                                }}>
-                                    <div style={{ fontSize: '0.9rem', color: 'hsl(var(--primary))', marginBottom: '8px', fontWeight: 'bold' }}>
-                                        {formatDate(entry.date)}
-                                    </div>
-                                    {entry.messages.slice(0, 2).map((msg, mIdx) => (
-                                        <div key={mIdx} style={{
-                                            fontSize: '0.85rem',
-                                            color: 'hsl(var(--text-muted))',
-                                            marginBottom: '4px',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis'
-                                        }}>
-                                            <span style={{ fontWeight: 'bold' }}>{msg.role === 'user' ? 'You' : 'Aura'}:</span> {msg.text}
-                                        </div>
-                                    ))}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
 
 
 
@@ -607,6 +600,6 @@ const InteractiveDiary = ({ onAnalyze, userContext }) => {
             `}</style>
         </div >
     );
-};
+});
 
 export default InteractiveDiary;

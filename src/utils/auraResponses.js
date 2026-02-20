@@ -171,3 +171,27 @@ export const clearTodayConversation = () => {
     const filtered = conversations.filter(c => c.date !== today);
     localStorage.setItem('aura_journal_conversations', JSON.stringify(filtered));
 }
+
+export const saveExerciseToDiary = (exerciseType, userResponse) => {
+    // 1. Save User's entry to the diary
+    saveMessage('user', `[Completed ${exerciseType}]\n${userResponse}`);
+
+    // 2. Extract a simple keyword to reflect back
+    const words = userResponse.split(/\s+/).filter(w => w.length > 4);
+    const keyword = words.length > 0 ? words[Math.floor(Math.random() * words.length)].replace(/[.,!?]/g, '') : 'space';
+
+    // 3. Generate Aura's reply
+    const auraReplies = [
+        `That sounds like a comforting ${keyword}. You gave your mind a place to rest 🌿`,
+        `Thank you for sharing that ${keyword}. It's wonderful that you took this time for yourself ✨`,
+        `Focusing on ${keyword} is a great step. I'm proud of you for trying this exercise 💙`,
+        `Holding onto that ${keyword} can be very grounding. You did really well 🌟`
+    ];
+
+    const reply = auraReplies[Math.floor(Math.random() * auraReplies.length)];
+
+    // Save Aura's reply slightly delayed to look natural in UI if they open diary immediately
+    setTimeout(() => {
+        saveMessage('aura', reply);
+    }, 500);
+};

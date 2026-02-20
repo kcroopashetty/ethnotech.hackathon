@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { saveExerciseToDiary } from '../../utils/auraResponses';
 
 const GroundingModule = ({ onClose }) => {
     const [currentStep, setCurrentStep] = useState(0);
     const [completed, setCompleted] = useState(false);
+    const [exerciseInputText, setExerciseInputText] = useState('');
     const [userResponses, setUserResponses] = useState({
         see: [],
         feel: [],
@@ -94,28 +96,60 @@ const GroundingModule = ({ onClose }) => {
                 <p style={{
                     fontSize: '1.1rem',
                     color: 'hsl(var(--text-muted))',
-                    marginBottom: '30px',
+                    marginBottom: '10px',
                     maxWidth: '300px'
                 }}>
                     You've reconnected with the present moment. You're doing great. 🌿
                 </p>
-                <button
-                    onClick={onClose}
+
+                <textarea
+                    value={exerciseInputText}
+                    onChange={(e) => setExerciseInputText(e.target.value)}
+                    placeholder="How do you feel after grounding?"
                     style={{
-                        background: 'hsl(var(--primary))',
-                        color: 'white',
+                        width: '100%',
+                        maxWidth: '300px',
+                        padding: '15px',
+                        borderRadius: '12px',
+                        border: '2px solid var(--divider)',
+                        fontSize: '1rem',
+                        fontFamily: 'inherit',
+                        color: 'hsl(var(--text-dark))',
+                        resize: 'none',
+                        minHeight: '80px',
+                        marginBottom: '20px',
+                        transition: 'border 0.2s',
+                        outline: 'none'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = 'hsl(var(--primary))'}
+                    onBlur={(e) => e.target.style.borderColor = 'var(--divider)'}
+                />
+
+                <button
+                    onClick={() => {
+                        saveExerciseToDiary('5-4-3-2-1 Grounding', exerciseInputText);
+                        onClose();
+                    }}
+                    disabled={!exerciseInputText.trim()}
+                    style={{
+                        background: exerciseInputText.trim() ? 'hsl(var(--primary))' : 'var(--divider)',
+                        color: exerciseInputText.trim() ? 'white' : 'hsl(var(--text-muted))',
                         padding: '12px 32px',
                         borderRadius: '50px',
                         border: 'none',
                         fontSize: '1rem',
                         fontWeight: '600',
-                        cursor: 'pointer',
+                        cursor: exerciseInputText.trim() ? 'pointer' : 'not-allowed',
                         transition: 'all 0.2s'
                     }}
-                    onMouseOver={e => e.target.style.transform = 'scale(1.05)'}
-                    onMouseOut={e => e.target.style.transform = 'scale(1)'}
+                    onMouseOver={e => {
+                        if (exerciseInputText.trim()) e.target.style.transform = 'scale(1.05)';
+                    }}
+                    onMouseOut={e => {
+                        if (exerciseInputText.trim()) e.target.style.transform = 'scale(1)';
+                    }}
                 >
-                    Close
+                    Mark as Done
                 </button>
             </div>
         );

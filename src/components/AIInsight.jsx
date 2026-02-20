@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PersonalizedExercises from './PersonalizedExercises';
 import MicroCopingActivity from './MicroCopingActivity';
 
-const AIInsight = ({ sentiment, isAnalyzing, fusionLabel, facialMood, onTriggerIntervention, onSaveGratitude, onSaveSelfCompassionNote, onExerciseComplete }) => {
+const AIInsight = ({ sentiment, isAnalyzing, fusionLabel, facialMood, onTriggerIntervention, onSaveGratitude, onSaveSelfCompassionNote, onExerciseComplete, onPositiveRemind }) => {
     const [isStressRelieved, setIsStressRelieved] = useState(false);
     if (isAnalyzing) {
         return (
@@ -346,6 +346,30 @@ const AIInsight = ({ sentiment, isAnalyzing, fusionLabel, facialMood, onTriggerI
                         </div>
                     )}
                 </div>
+
+                {/* --- Safe Feature: Positive Memory Button --- */}
+                {onPositiveRemind && (
+                    <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                        <button
+                            onClick={onPositiveRemind}
+                            style={{
+                                padding: '6px 14px',
+                                background: 'rgba(205, 180, 219, 0.1)',
+                                color: 'hsl(var(--primary))',
+                                border: '1px dashed hsl(var(--primary) / 0.3)',
+                                borderRadius: '20px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: '500',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = 'rgba(205, 180, 219, 0.2)'}
+                            onMouseOut={e => e.currentTarget.style.background = 'rgba(205, 180, 219, 0.1)'}
+                        >
+                            ✨ Remind me what went well
+                        </button>
+                    </div>
+                )}
 
                 <footer style={{
                     marginTop: '25px',

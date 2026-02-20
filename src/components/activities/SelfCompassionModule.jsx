@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { saveExerciseToDiary } from '../../utils/auraResponses';
 
 const SelfCompassionModule = ({ onClose }) => {
     const [note, setNote] = useState('');
@@ -17,6 +18,7 @@ const SelfCompassionModule = ({ onClose }) => {
         if (note.trim()) {
             setDisplayNote(note);
             setSubmitted(true);
+            saveExerciseToDiary('Self Compassion', note);
             setNote('');
         }
     };
